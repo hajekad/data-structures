@@ -6,53 +6,59 @@ class interval_map {
 	V m_valBegin;
 	std::map<K,V> m_map;
 public:
-	// constructor associates whole range of K with val
 	interval_map(V const& val)
 	: m_valBegin(val)
 	{}
 
-	// Assign value val to interval [keyBegin, keyEnd).
-	// Overwrite previous values in this interval.
-	// Conforming to the C++ Standard Library conventions, the interval
-	// includes keyBegin, but excludes keyEnd.
-	// If !( keyBegin < keyEnd ), this designates an empty interval,
-	// and assign must do nothing.
 	void assign(K const& keyBegin, K const& keyEnd, V const& val) {
-        if (!(keyBegin < keyEnd)) return; // Handle empty interval
+        if(!(keyBegin < keyEnd))
+		{
+			return;
+		}
 
-        // Find the first element not less than keyBegin
-        auto startIt = m_map.lower_bound(keyBegin); 
+    	auto itLower = m_map.upper_bound(keyBegin);
+		auto itUpper = m_map.upper_bound(keyEnd);
+	
+		if (!(itLower == m_map.begin()) && !(keyBegin < std::prev(itLower)->first) && !((std::prev(itLower)->first) < keyBegin))
+		{
+			itLower = std::prev(itLower);
+		}
 
-        // Optimization: if startIt is not at the beginning and the previous interval's value
-        // is the same as val, we adjust startIt to include this interval in the erasure range.
-        if (startIt != m_map.begin() && (--startIt)->second == val) {
-            ++startIt; // Since val is same, we don't need to insert keyBegin
-        } else {
-            startIt = m_map.upper_bound(keyBegin);
-        }
+    	V valStart = (!(itLower == m_map.begin()) ? std::prev(itLower)->second : m_valBegin);
+		V valEnd = (!(itUpper == m_map.end()) ? std::prev(itUpper)->second : m_valBegin);
 
-        // Find the first element not less than keyEnd
-        auto endIt = m_map.lower_bound(keyEnd);
+    	if(val == m_valBegin && m_map.empty())
+		{
+    	    m_map.insert({keyBegin, val});
+    	    m_map.insert({keyEnd, m_valBegin});
+    	    return;
+    	}
+		else if(itLower == m_map.end() || itUpper == m_map.begin())
+		{
+    	    if (!(val == m_valBegin))
+			{
+    	        m_map.insert({keyBegin, val});
+    	        m_map.insert({keyEnd, m_valBegin});
+    	    }
+    	    return;
+    	}
 
-        // Remember the value right after the end of the interval to be assigned, if any
-        V tailVal = (endIt == m_map.end()) ? m_valBegin : endIt->second;
+    	if (!(itLower == itUpper) || !(val == valStart))
+		{
+			m_map.erase(itLower, itUpper);
+		}
 
-        // Erase existing intervals that are fully covered by [keyBegin, keyEnd)
-        m_map.erase(startIt, endIt);
+    	if (!(valStart == val))
+		{
+			m_map.insert({keyBegin, val});
+		}
 
-        // Insert the new interval
-        if (val != m_valBegin) {
-            m_map[keyBegin] = val;
-        }
-
-        // If the value at keyEnd is different from the value being assigned (and not the default),
-        // or if the interval does not extend to the end of the map, insert the tail value
-        if (tailVal != val) {
-            m_map[keyEnd] = tailVal;
-        }
+    	if (!(valEnd == val))
+		{
+			m_map.insert({keyEnd, valEnd});
+		}
     }
 
-	// look-up of the value associated with key
 	V const& operator[]( K const& key ) const {
 		auto it=m_map.upper_bound(key);
 		if(it==m_map.begin()) {
@@ -62,12 +68,6 @@ public:
 		}
 	}
 };
-
-// Many solutions we receive are incorrect. Consider using a randomized test
-// to discover the cases that your implementation does not handle correctly.
-// We recommend to implement a test function that tests the functionality of
-// the interval_map, for example using a map of int intervals to char.
-
 
 void testOverlap()
 {
@@ -198,7 +198,7 @@ void testRepeatedValueOverlap() {
 void testRandomAssignmentsStress() {
     interval_map<int, char> map('X');
     const int iterations = 10000;
-    const int range = 1000; // Adjust based on the desired stress level
+    const int range = 1000;
 
     for(int i = 0; i < iterations; ++i) {
         int start = rand() % range;
@@ -207,8 +207,6 @@ void testRandomAssignmentsStress() {
         map.assign(start, end, value);
     }
 
-    // Assertions can be tricky here without a reference model to compare against.
-    // This test is more about performance and ensuring no exceptions are thrown.
     std::cout << "testRandomAssignmentsStress passed\n";
 }
 
